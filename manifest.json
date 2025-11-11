@@ -1,0 +1,9 @@
+{
+  "name": "ESP32 Web Flasher",
+  "short_name": "ESP32Flasher",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "description": "Trang web nạp firmware .bin cho ESP32 qua USB",
+  "icons": []
+}
