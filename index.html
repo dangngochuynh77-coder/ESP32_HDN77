@@ -23,20 +23,18 @@
     <h1>Trang nạp Firmware ESP32 Tự Động</h1>
     
     <button id="connectButton">1. Kết nối ESP32</button>
-    
     <input type="file" id="firmwareFile" accept=".bin">
     <button id="selectFileButton">Chọn File (.bin)</button>
-    
     <button id="flashButton" disabled>2. Nạp Firmware</button>
 
     <h3>Log:</h3>
     <pre id="log"></pre>
 
-    <script src="https://unpkg.com/esptool-js@0.3.3/bundle.js"></script>
+    <script src="bundle.js"></script>
     
     <script>
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        // !!! THAY THẾ LINK NÀY BẰNG LINK "RAW" CỦA BẠN (Bước 2) !!!
+        // !!! THAY THẾ LINK NÀY BẰNG LINK "RAW" FILE .BIN CỦA BẠN !!!
         // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         const firmwareUrl = 'https://github.com/dangngochuynh77-coder/ESP32_HDN77/raw/refs/heads/main/PuppyFull_soxo.bin';
 
@@ -47,28 +45,27 @@
 
         let device = null;
         let esploader = null;
-        let fileContent = null; // Sẽ lưu nội dung firmware
+        let fileContent = null; 
         let espConnected = false;
         
-        // Hàm ghi log
         function log(message) {
             logElement.textContent += message + '\n';
             logElement.scrollTop = logElement.scrollHeight;
         }
 
-        // --- HÀM MỚI: Tự động tải firmware ---
+        // --- HÀM TẢI FIRMWARE (ĐÃ SỬA LỖI 2: Ẩn link log) ---
         async function fetchFirmware() {
-            log(`Đang tải firmware từ: ${firmwareUrl}`);
+            // Đã ẩn link URL khỏi log
+            log("Đang chuẩn bị file firmware..."); 
             try {
                 const response = await fetch(firmwareUrl);
                 if (!response.ok) {
-                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Link 'Raw' có thể bị sai)`);
+                    // Đã ẩn gợi ý "Link 'Raw'"
+                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Không tìm thấy file firmware)`);
                 }
-                // Chuyển nội dung file thành ArrayBuffer
                 fileContent = await response.arrayBuffer(); 
                 log(`Tải firmware thành công! Kích thước: ${fileContent.byteLength} bytes`);
                 
-                // Nếu ESP đã kết nối, kích hoạt nút Nạp
                 if (espConnected) {
                     flashButton.disabled = false;
                     log("Thiết bị và firmware đã sẵn sàng. Nhấn 'Nạp Firmware'.");
@@ -78,17 +75,16 @@
 
             } catch (e) {
                 log("LỖI TẢI FIRMWARE: " + e.message);
-                log("Vui lòng kiểm tra lại đường link 'Raw' trong file index.html.");
+                // Đã ẩn gợi ý "Link 'Raw'"
             }
         }
         
         // 1. Sự kiện nhấn nút KẾT NỐI
         connectButton.onclick = async () => {
             try {
-                // Yêu cầu người dùng chọn cổng Serial
+                // Dòng này sẽ gọi thư viện bundle.js
+                // Nếu bundle.js tải thành công, "new ESPLoader" sẽ không còn lỗi
                 device = await navigator.serial.requestPort({});
-                
-                // Khởi tạo ESPLoader
                 esploader = new ESPLoader({
                     device: device,
                     baudrate: 115200, 
@@ -104,7 +100,6 @@
                 espConnected = true;
                 connectButton.disabled = true;
 
-                // Nếu firmware đã tải xong, kích hoạt nút Nạp
                 if (fileContent) {
                     flashButton.disabled = false;
                     log("Thiết bị và firmware đã sẵn sàng. Nhấn 'Nạp Firmware'.");
@@ -140,19 +135,17 @@
                 await esploader.hard_reset();
                 await esploader.disconnect();
                 
-                // Reset lại giao diện
                 connectButton.disabled = false;
                 flashButton.disabled = true;
                 espConnected = false;
 
             } catch (e) {
                 log("LỖI NẠP FIRMWARE: " + e.message);
-                flashButton.disabled = false; // Cho phép thử lại
+                flashButton.disabled = false;
             }
         };
 
         // --- TỰ ĐỘNG CHẠY KHI TẢI TRANG ---
-        // Bắt đầu tải firmware ngay khi người dùng mở web
         fetchFirmware(); 
 
     </script>
