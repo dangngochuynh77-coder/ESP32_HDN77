@@ -53,15 +53,13 @@
             logElement.scrollTop = logElement.scrollHeight;
         }
 
-        // --- HÀM TẢI FIRMWARE (ĐÃ SỬA LỖI 2: Ẩn link log) ---
+        // --- HÀM TẢI FIRMWARE (ĐÃ ẨN LINK) ---
         async function fetchFirmware() {
-            // Đã ẩn link URL khỏi log
             log("Đang chuẩn bị file firmware..."); 
             try {
                 const response = await fetch(firmwareUrl);
                 if (!response.ok) {
-                    // Đã ẩn gợi ý "Link 'Raw'"
-                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Không tìm thấy file firmware)`);
+                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Không tìm thấy file firmware - Kiểm tra lại link 'Raw')`);
                 }
                 fileContent = await response.arrayBuffer(); 
                 log(`Tải firmware thành công! Kích thước: ${fileContent.byteLength} bytes`);
@@ -75,15 +73,14 @@
 
             } catch (e) {
                 log("LỖI TẢI FIRMWARE: " + e.message);
-                // Đã ẩn gợi ý "Link 'Raw'"
             }
         }
         
         // 1. Sự kiện nhấn nút KẾT NỐI
         connectButton.onclick = async () => {
             try {
-                // Dòng này sẽ gọi thư viện bundle.js
-                // Nếu bundle.js tải thành công, "new ESPLoader" sẽ không còn lỗi
+                // Dòng này sẽ gọi file bundle.js bạn vừa upload
+                // Nếu bundle.js đã có trên GitHub, lỗi "ESPLoader is not defined" sẽ hết
                 device = await navigator.serial.requestPort({});
                 esploader = new ESPLoader({
                     device: device,
@@ -150,5 +147,4 @@
 
     </script>
 </body>
-
 </html>
