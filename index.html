@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Trang nạp ESP32 Puppy Tự Động HĐN77</title>
+    <title>Trang nạp ESP32 Tự Động</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
@@ -11,16 +11,12 @@
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; }
         pre { background: #eee; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
-        
-        /* Ẩn các thành phần chọn file */
-        #firmwareFile, #selectFileButton {
-            display: none;
-        }
+        #firmwareFile, #selectFileButton { display: none; }
     </style>
 </head>
 <body>
 
-    <h1>Trang nạp Firmware ESP32 Tự Động</h1>
+    <h1>Trang nạp Firmware Puppy Tự Động HĐN77</h1>
     
     <button id="connectButton">1. Kết nối ESP32</button>
     <input type="file" id="firmwareFile" accept=".bin">
@@ -30,12 +26,8 @@
     <h3>Log:</h3>
     <pre id="log"></pre>
 
-    <script src="bundle.js"></script>
-    
     <script>
-        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        // !!! THAY THẾ LINK NÀY BẰNG LINK "RAW" FILE .BIN CỦA BẠN !!!
-        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // Link "Raw" file .bin của bạn
         const firmwareUrl = 'https://raw.githubusercontent.com/dangngochuynh77-coder/ESP32_HDN77/main/PuppyFull_soxo.bin';
 
         // Lấy các phần tử DOM
@@ -48,18 +40,21 @@
         let fileContent = null; 
         let espConnected = false;
         
+        // Lưu trữ Class ESPLoader
+        let ESPLoader;
+
         function log(message) {
             logElement.textContent += message + '\n';
             logElement.scrollTop = logElement.scrollHeight;
         }
 
-        // --- HÀM TẢI FIRMWARE (ĐÃ ẨN LINK) ---
+        // --- HÀM TẢI FIRMWARE ---
         async function fetchFirmware() {
             log("Đang chuẩn bị file firmware..."); 
             try {
                 const response = await fetch(firmwareUrl);
                 if (!response.ok) {
-                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Không tìm thấy file firmware - Kiểm tra lại link 'Raw')`);
+                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Không tìm thấy file firmware)`);
                 }
                 fileContent = await response.arrayBuffer(); 
                 log(`Tải firmware thành công! Kích thước: ${fileContent.byteLength} bytes`);
@@ -76,14 +71,32 @@
             }
         }
         
-        // 1. Sự kiện nhấn nút KẾT NỐI
+        // --- SỰ KIỆN NHẤN NÚT KẾT NỐI ---
         connectButton.onclick = async () => {
+            
+            // BƯỚC 1: Tải và Import module 'bundle.js'
+            if (!ESPLoader) {
+                try {
+                    log("Đang tải công cụ nạp...");
+                    const module = await import('./bundle.js'); 
+                    ESPLoader = module.ESPLoader; 
+                    
+                    if (!ESPLoader) {
+                        throw new Error("Không tìm thấy class ESPLoader trong file bundle.js.");
+                    }
+                    log("Tải công cụ nạp thành công.");
+                } catch (e) {
+                    log("LỖI TẢI CÔNG CỤ NẠP (bundle.js): " + e.message);
+                    return; 
+                }
+            }
+
+            // BƯỚC 2: Chạy code kết nối
             try {
-                // Dòng này sẽ gọi file bundle.js bạn vừa upload
-                // Nếu bundle.js đã có trên GitHub, lỗi "ESPLoader is not defined" sẽ hết
                 device = await navigator.serial.requestPort({});
+                
                 esploader = new ESPLoader({
-                    device: device,
+                    port: device,
                     baudrate: 115200, 
                     log: log 
                 });
@@ -91,8 +104,14 @@
                 log("Đang kết nối...");
                 await esploader.connect();
                 log("Đã kết nối thành công!");
-                log("Chip: " + esploader.chipName);
-                log("MAC: " + esploader.macAddr());
+
+                // ===================================================================
+                // SỬA LỖI Ở ĐÂY: Đã đổi sang hàm/thuộc tính mới
+                // ===================================================================
+                const mac = await esploader.chip.readMac(esploader);
+                log("Chip: " + esploader.chip.CHIP_NAME);
+                log("MAC: " + mac);
+                // ===================================================================
 
                 espConnected = true;
                 connectButton.disabled = true;
@@ -110,7 +129,7 @@
             }
         };
 
-        // 2. Sự kiện nhấn nút NẠP FIRMWARE
+        // --- HÀM NẠP FIRMWARE (Không thay đổi) ---
         flashButton.onclick = async () => {
             if (!esploader || !fileContent) {
                 log("Lỗi: Chưa kết nối hoặc firmware chưa được tải.");
@@ -121,9 +140,15 @@
                 log("Bắt đầu nạp... (Có thể mất vài phút)");
                 flashButton.disabled = true;
 
+                // ===================================================================
+                // SỬA LỖI Ở ĐÂY: Thêm tham số 'true' để báo cho stub biết đây là file nén
+                // esploader.write_flash(..., ..., ..., true)
+                // ===================================================================
                 await esploader.write_flash(
                     [{ data: fileContent, address: 0x1000 }],
-                    false 
+                    false, // Mặc định là 'false' (không xóa)
+                    false, // Mặc định là 'false' (không xác minh)
+                    true   // **Quan trọng: true = file nén**
                 );
 
                 log("NẠP THÀNH CÔNG!");
@@ -143,9 +168,8 @@
         };
 
         // --- TỰ ĐỘNG CHẠY KHI TẢI TRANG ---
-        fetchFirmware(); 
+        fetchRoomware(); 
 
     </script>
 </body>
 </html>
-
