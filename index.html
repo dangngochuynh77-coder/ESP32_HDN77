@@ -1,85 +1,160 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>ESP32 Web Flasher</title>
-<style>
-body {
-  font-family: Arial, sans-serif;
-  text-align: center;
-  margin-top: 80px;
-  background: #0f172a;
-  color: white;
-}
-button {
-  font-size: 16px;
-  margin: 10px;
-  padding: 10px 20px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-}
-#connect { background-color: #3b82f6; color: white; }
-#flash { background-color: #10b981; color: white; }
-#reset { background-color: #f59e0b; color: white; }
-#status { margin-top: 20px; font-size: 18px; }
-input[type=file] { margin-top: 20px; }
-</style>
-<script type="module">
-import { ESPLoader } from "https://unpkg.com/esptool-js@0.5.4/dist/web/index.js";
-
-let loader, port;
-
-async function connect() {
-  try {
-    port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 115200 });
-    loader = new ESPLoader(port);
-    await loader.initialize();
-    document.getElementById("status").innerText = "✅ Đã kết nối ESP32";
-  } catch (e) {
-    document.getElementById("status").innerText = "❌ Lỗi: " + e.message;
-  }
-}
-
-async function flash() {
-  try {
-    const file = document.getElementById("binFile").files[0];
-    if (!file) return alert("Chọn file .bin trước");
-
-    const buffer = await file.arrayBuffer();
-    const flashOffset = 0x1000;
-
-    document.getElementById("status").innerText = "⏳ Đang ghi...";
-    await loader.flashData(buffer, flashOffset);
-    document.getElementById("status").innerText = "✅ Nạp thành công!";
-  } catch (e) {
-    document.getElementById("status").innerText = "❌ Lỗi: " + e.message;
-  }
-}
-
-async function reset() {
-  if (loader) {
-    await loader.hardReset();
-    document.getElementById("status").innerText = "🔁 ESP32 đã reset";
-  }
-}
-
-window.connect = connect;
-window.flash = flash;
-window.reset = reset;
-</script>
+    <title>Trang nạp ESP32 Tự Động</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+        h1 { color: #333; }
+        button { background: #007BFF; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; }
+        pre { background: #eee; border: 1px solid #ddd; padding: 10px; white-space: pre-wrap; word-wrap: break-word; }
+        
+        /* Ẩn các thành phần chọn file */
+        #firmwareFile, #selectFileButton {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <h1>⚡ ESP32 Web Flasher</h1>
-  <input type="file" id="binFile" accept=".bin"><br>
-  <button id="connect" onclick="connect()">🔌 Kết nối</button>
-  <button id="flash" onclick="flash()">⬆️ Nạp</button>
-  <button id="reset" onclick="reset()">🔁 Reset</button>
-  <p id="status">Chưa kết nối</p>
-  <footer style="margin-top:40px;font-size:13px;opacity:0.6">
-    © 2025 HDN77- Flash Esp32
-  </footer>
+
+    <h1>Trang nạp Firmware ESP32 Tự Động</h1>
+    
+    <button id="connectButton">Kết nối ESP32</button>
+    
+    <input type="file" id="firmwareFile" accept=".bin">
+    <button id="selectFileButton">1. Chọn File (.bin)</button>
+    
+    <button id="flashButton" disabled>Nạp Firmware</button>
+
+    <h3>Log:</h3>
+    <pre id="log"></pre>
+
+    <script src="https://unpkg.com/esptool-js@0.3.3/bundle.js"></script>
+    
+    <script>
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // !!! THAY THẾ LINK NÀY BẰNG LINK "RAW" CỦA BẠN (Bước 2) !!!
+        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        const firmwareUrl = 'https://raw.githubusercontent.com/TenCuaBan/my-esp32-flasher/main/firmware.bin';
+
+        // Lấy các phần tử DOM
+        const connectButton = document.getElementById('connectButton');
+        const flashButton = document.getElementById('flashButton');
+        const logElement = document.getElementById('log');
+
+        let device = null;
+        let esploader = null;
+        let fileContent = null; // Sẽ lưu nội dung firmware
+        let espConnected = false;
+        
+        // Hàm ghi log
+        function log(message) {
+            logElement.textContent += message + '\n';
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // --- HÀM MỚI: Tự động tải firmware ---
+        async function fetchFirmware() {
+            log(`Đang tải firmware từ: ${firmwareUrl}`);
+            try {
+                const response = await fetch(firmwareUrl);
+                if (!response.ok) {
+                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status}`);
+                }
+                // Chuyển nội dung file thành ArrayBuffer
+                fileContent = await response.arrayBuffer(); 
+                log(`Tải firmware thành công! Kích thước: ${fileContent.byteLength} bytes`);
+                
+                // Nếu ESP đã kết nối, kích hoạt nút Nạp
+                if (espConnected) {
+                    flashButton.disabled = false;
+                    log("Thiết bị và firmware đã sẵn sàng. Nhấn 'Nạp Firmware'.");
+                }
+
+            } catch (e) {
+                log("LỖI TẢI FIRMWARE: " + e.message);
+                log("Vui lòng kiểm tra lại đường link 'Raw' trong file index.html.");
+            }
+        }
+        
+        // 1. Sự kiện nhấn nút KẾT NỐI
+        connectButton.onclick = async () => {
+            try {
+                // Yêu cầu người dùng chọn cổng Serial
+                device = await navigator.serial.requestPort({});
+                
+                // Khởi tạo ESPLoader
+                esploader = new ESPLoader({
+                    device: device,
+                    baudrate: 115200, 
+                    log: log 
+                });
+
+                log("Đang kết nối...");
+                await esploader.connect();
+                log("Đã kết nối thành công!");
+                log("Chip: " + esploader.chipName);
+                log("MAC: "D + esploader.macAddr());
+
+                espConnected = true;
+                connectButton.disabled = true;
+
+                // Nếu firmware đã tải xong, kích hoạt nút Nạp
+                if (fileContent) {
+                    flashButton.disabled = false;
+                    log("Thiết bị và firmware đã sẵn sàng. Nhấn 'Nạp Firmware'.");
+                } else {
+                    log("Đang chờ tải firmware...");
+                }
+
+            } catch (e) {
+                log("Lỗi kết nối: " + e.message);
+                espConnected = false;
+            }
+        };
+
+        // (Phần chọn file thủ công đã bị ẩn đi)
+
+        // 2. Sự kiện nhấn nút NẠP FIRMWARE
+        flashButton.onclick = async () => {
+            if (!esploader || !fileContent) {
+                log("Lỗi: Chưa kết nối hoặc firmware chưa được tải.");
+                return;
+            }
+
+            try {
+                log("Bắt đầu nạp... (Có thể mất vài phút)");
+                flashButton.disabled = true;
+
+                await esploader.write_flash(
+                    [{ data: fileContent, address: 0x1000 }],
+                    false 
+                );
+
+                log("NẠP THÀNH CÔNG!");
+                log("Đang khởi động lại thiết bị...");
+                
+                await esploader.hard_reset();
+                await esploader.disconnect();
+                
+                // Reset lại giao diện
+                connectButton.disabled = false;
+                flashButton.disabled = true;
+                espConnected = false;
+
+            } catch (e) {
+                log("LỖI NẠP FIRMWARE: " + e.message);
+                flashButton.disabled = false; // Cho phép thử lại
+            }
+        };
+
+        // --- TỰ ĐỘNG CHẠY KHI TẢI TRANG ---
+        // Bắt đầu tải firmware ngay khi người dùng mở web
+        fetchFirmware(); 
+
+    </script>
 </body>
 </html>
