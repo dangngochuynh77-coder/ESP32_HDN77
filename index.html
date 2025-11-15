@@ -16,7 +16,7 @@
 </head>
 <body>
 
-    <h1>Trang nạp Firmware Puppy Tự Động HĐN77</h1>
+    <h1>Trang nạp Firmware Puppy HĐN77</h1>
     
     <button id="connectButton">1. Kết nối ESP32</button>
     <input type="file" id="firmwareFile" accept=".bin">
@@ -40,7 +40,6 @@
         let fileContent = null; 
         let espConnected = false;
         
-        // Lưu trữ Class ESPLoader
         let ESPLoader;
 
         function log(message) {
@@ -74,13 +73,11 @@
         // --- SỰ KIỆN NHẤN NÚT KẾT NỐI ---
         connectButton.onclick = async () => {
             
-            // BƯỚC 1: Tải và Import module 'bundle.js'
             if (!ESPLoader) {
                 try {
                     log("Đang tải công cụ nạp...");
                     const module = await import('./bundle.js'); 
                     ESPLoader = module.ESPLoader; 
-                    
                     if (!ESPLoader) {
                         throw new Error("Không tìm thấy class ESPLoader trong file bundle.js.");
                     }
@@ -91,7 +88,6 @@
                 }
             }
 
-            // BƯỚC 2: Chạy code kết nối
             try {
                 device = await navigator.serial.requestPort({});
                 
@@ -104,14 +100,10 @@
                 log("Đang kết nối...");
                 await esploader.connect();
                 log("Đã kết nối thành công!");
-
-                // ===================================================================
-                // SỬA LỖI Ở ĐÂY: Đã đổi sang hàm/thuộc tính mới
-                // ===================================================================
+                
                 const mac = await esploader.chip.readMac(esploader);
                 log("Chip: " + esploader.chip.CHIP_NAME);
                 log("MAC: " + mac);
-                // ===================================================================
 
                 espConnected = true;
                 connectButton.disabled = true;
@@ -129,7 +121,9 @@
             }
         };
 
-        // --- HÀM NẠP FIRMWARE (Không thay đổi) ---
+        // ===================================================================
+        // SỬA LỖI Ở ĐÂY: Hàm nạp firmware đã được cập nhật
+        // ===================================================================
         flashButton.onclick = async () => {
             if (!esploader || !fileContent) {
                 log("Lỗi: Chưa kết nối hoặc firmware chưa được tải.");
@@ -137,19 +131,31 @@
             }
 
             try {
-                log("Bắt đầu nạp... (Có thể mất vài phút)");
+                log("Bắt đầu nạp... (File 12MB, có thể mất vài phút)");
                 flashButton.disabled = true;
+                connectButton.disabled = true; // Khóa nút kết nối khi đang nạp
 
-                // ===================================================================
-                // SỬA LỖI Ở ĐÂY: Thêm tham số 'true' để báo cho stub biết đây là file nén
-                // esploader.write_flash(..., ..., ..., true)
-                // ===================================================================
-                await esploader.write_flash(
-                    [{ data: fileContent, address: 0x1000 }],
-                    false, // Mặc định là 'false' (không xóa)
-                    false, // Mặc định là 'false' (không xác minh)
-                    true   // **Quan trọng: true = file nén**
-                );
+                const fileArray = [{ data: fileContent, address: 0x1000 }];
+                
+                // Sử dụng esploader.main() với các tùy chọn
+                await esploader.main({
+                    fileArray: fileArray,
+                    flashSize: "keep",
+                    flashMode: "keep",
+                    flashFreq: "keep",
+                    eraseAll: false, // Không xóa toàn bộ flash
+                    compress: false, // Quan trọng: file .bin 12MB của bạn không phải file nén
+                    
+                    // Thêm hàm báo cáo tiến độ
+                    reportProgress: (fileIndex, written, total) => {
+                        const progress = Math.round((written / total) * 100);
+                        // Cập nhật log trên cùng một dòng để tránh spam
+                        logElement.textContent = logElement.textContent.substring(0, logElement.textContent.lastIndexOf('\n') + 1);
+                        log(`Đang nạp file... ${progress}%`);
+                    },
+                    
+                    calculateMD5Hash: (image) => "" // Bỏ qua MD5
+                });
 
                 log("NẠP THÀNH CÔNG!");
                 log("Đang khởi động lại thiết bị...");
@@ -157,18 +163,20 @@
                 await esploader.hard_reset();
                 await esploader.disconnect();
                 
-                connectButton.disabled = false;
+                connectButton.disabled = false; // Mở lại nút kết nối
                 flashButton.disabled = true;
                 espConnected = false;
 
             } catch (e) {
                 log("LỖI NẠP FIRMWARE: " + e.message);
-                flashButton.disabled = false;
+                flashButton.disabled = false; // Cho phép thử lại nếu lỗi
+                connectButton.disabled = false;
             }
         };
+        // ===================================================================
 
         // --- TỰ ĐỘNG CHẠY KHI TẢI TRANG ---
-        fetchRoomware(); 
+        fetchFirmware(); 
 
     </script>
 </body>
