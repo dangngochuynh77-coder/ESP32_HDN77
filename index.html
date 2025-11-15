@@ -22,12 +22,12 @@
 
     <h1>Trang nạp Firmware ESP32 Tự Động</h1>
     
-    <button id="connectButton">Kết nối ESP32</button>
+    <button id="connectButton">1. Kết nối ESP32</button>
     
     <input type="file" id="firmwareFile" accept=".bin">
-    <button id="selectFileButton">1. Chọn File (.bin)</button>
+    <button id="selectFileButton">Chọn File (.bin)</button>
     
-    <button id="flashButton" disabled>Nạp Firmware</button>
+    <button id="flashButton" disabled>2. Nạp Firmware</button>
 
     <h3>Log:</h3>
     <pre id="log"></pre>
@@ -62,7 +62,7 @@
             try {
                 const response = await fetch(firmwareUrl);
                 if (!response.ok) {
-                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status}`);
+                    throw new Error(`Lỗi HTTP! Trạng thái: ${response.status} (Link 'Raw' có thể bị sai)`);
                 }
                 // Chuyển nội dung file thành ArrayBuffer
                 fileContent = await response.arrayBuffer(); 
@@ -72,6 +72,8 @@
                 if (espConnected) {
                     flashButton.disabled = false;
                     log("Thiết bị và firmware đã sẵn sàng. Nhấn 'Nạp Firmware'.");
+                } else {
+                    log("Firmware đã sẵn sàng, đang chờ kết nối thiết bị...");
                 }
 
             } catch (e) {
@@ -97,7 +99,7 @@
                 await esploader.connect();
                 log("Đã kết nối thành công!");
                 log("Chip: " + esploader.chipName);
-                log("MAC: "D + esploader.macAddr());
+                log("MAC: " + esploader.macAddr());
 
                 espConnected = true;
                 connectButton.disabled = true;
@@ -115,8 +117,6 @@
                 espConnected = false;
             }
         };
-
-        // (Phần chọn file thủ công đã bị ẩn đi)
 
         // 2. Sự kiện nhấn nút NẠP FIRMWARE
         flashButton.onclick = async () => {
